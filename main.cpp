@@ -73,6 +73,9 @@ void display_problem(const SetCoverProblem& problem) {
     }
 }
 
+#include <unordered_set>
+#include <random>
+
 // Génère une solution réalisable de manière naïve (aléatoire)
 vector<int> generate_random_solution(const SetCoverProblem& problem) {
     vector<int> selected_columns;
@@ -98,10 +101,12 @@ vector<int> generate_random_solution(const SetCoverProblem& problem) {
         column_used[col] = true;
 
         // Marquer les lignes couvertes par cette colonne
-        auto it = uncovered_rows.begin();
+        unordered_set<int>::iterator it = uncovered_rows.begin();
         while (it != uncovered_rows.end()) {
             if (problem.A[*it][col] == 1) {
-                it = uncovered_rows.erase(it);
+                unordered_set<int>::iterator temp = it;
+                ++it;
+                uncovered_rows.erase(temp);
             } else {
                 ++it;
             }
@@ -111,20 +116,28 @@ vector<int> generate_random_solution(const SetCoverProblem& problem) {
     return selected_columns;
 }
 
+
 // Vérifie si une solution est réalisable (couvre toutes les lignes)
 bool is_valid_solution(const SetCoverProblem& problem, const vector<int>& solution) {
     vector<bool> covered(problem.m, false);
 
-    for (int col : solution) {
-        for (int i = 0; i < problem.m; i++) {
-            if (problem.A[i][col] == 1) {
-                covered[i] = true;
+    for (size_t i = 0; i < solution.size(); i++) {
+        int col = solution[i];
+        for (int j = 0; j < problem.m; j++) {
+            if (problem.A[j][col] == 1) {
+                covered[j] = true;
             }
         }
     }
 
-    return all_of(covered.begin(), covered.end(), [](bool c) { return c; });
+    for (size_t i = 0; i < covered.size(); i++) {
+        if (!covered[i]) {
+            return false;
+        }
+    }
+    return true;
 }
+
 
 
 
@@ -140,8 +153,8 @@ int main() {
     vector<int> random_solution = generate_random_solution(problem);
 
     cout << "Solution aléatoire générée : ";
-    for (int col : random_solution) {
-        cout << col + 1 << " "; // Indices en base 1
+    for (size_t i = 0; i < random_solution.size(); i++) {
+        cout << random_solution[i] + 1 << " "; // Indices en base 1
     }
     cout << endl;
 
@@ -150,6 +163,7 @@ int main() {
     } else {
         cout << "❌ La solution n'est PAS valide !" << endl;
     }
+
 
     return 0;
 }

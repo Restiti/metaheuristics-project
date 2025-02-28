@@ -2,6 +2,8 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
+#include <unordered_set>
+#include <random>
 
 using namespace std;
 
@@ -71,6 +73,61 @@ void display_problem(const SetCoverProblem& problem) {
     }
 }
 
+// Génère une solution réalisable de manière naïve (aléatoire)
+vector<int> generate_random_solution(const SetCoverProblem& problem) {
+    vector<int> selected_columns;
+    vector<bool> covered(problem.m, false);
+    vector<bool> column_used(problem.n, false);
+    unordered_set<int> uncovered_rows;
+
+    for (int i = 0; i < problem.m; i++) {
+        uncovered_rows.insert(i);
+    }
+
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_int_distribution<int> random_col(0, problem.n - 1);
+
+    while (!uncovered_rows.empty()) {
+        int col;
+        do {
+            col = random_col(gen);
+        } while (column_used[col]);
+
+        selected_columns.push_back(col);
+        column_used[col] = true;
+
+        // Marquer les lignes couvertes par cette colonne
+        auto it = uncovered_rows.begin();
+        while (it != uncovered_rows.end()) {
+            if (problem.A[*it][col] == 1) {
+                it = uncovered_rows.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    return selected_columns;
+}
+
+// Vérifie si une solution est réalisable (couvre toutes les lignes)
+bool is_valid_solution(const SetCoverProblem& problem, const vector<int>& solution) {
+    vector<bool> covered(problem.m, false);
+
+    for (int col : solution) {
+        for (int i = 0; i < problem.m; i++) {
+            if (problem.A[i][col] == 1) {
+                covered[i] = true;
+            }
+        }
+    }
+
+    return all_of(covered.begin(), covered.end(), [](bool c) { return c; });
+}
+
+
+
 int main() {
     string filename = "resources/scp41.txt"; // Remplacez par le fichier à lire
 
@@ -79,6 +136,20 @@ int main() {
 
     // Afficher les données lues
     display_problem(problem);
+
+    vector<int> random_solution = generate_random_solution(problem);
+
+    cout << "Solution aléatoire générée : ";
+    for (int col : random_solution) {
+        cout << col + 1 << " "; // Indices en base 1
+    }
+    cout << endl;
+
+    if (is_valid_solution(problem, random_solution)) {
+        cout << "✅ La solution est valide et couvre toutes les lignes." << endl;
+    } else {
+        cout << "❌ La solution n'est PAS valide !" << endl;
+    }
 
     return 0;
 }

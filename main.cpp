@@ -192,7 +192,56 @@ vector<int> swap_subset(const SetCoverProblem& problem, const vector<int>& solut
     return solution;
 }
 
+// Calcule le coût total d'une solution (somme des coûts des colonnes sélectionnées)
+int compute_cost(const SetCoverProblem& problem, const vector<int>& solution) {
+    int total_cost = 0;
+    for (size_t i = 0; i < solution.size(); i++) {
+        total_cost += problem.costs[solution[i]];
+    }
+    return total_cost;
+}
 
+
+vector<int> vns(const SetCoverProblem& problem, int max_iterations) {
+    vector<int> current_solution = generate_random_solution(problem);
+    int current_cost = compute_cost(problem, current_solution);
+
+    for (int iter = 0; iter < max_iterations; iter++) {
+        bool improved = false;
+
+        // Liste des voisinages à tester dans cet ordre
+        for (int k = 0; k < 3; k++) {
+            vector<int> neighbor;
+
+            if (k == 0) {
+                neighbor = add_subset(problem, current_solution);
+            } else if (k == 1) {
+                neighbor = remove_subset(problem, current_solution);
+            } else if (k == 2) {
+                neighbor = swap_subset(problem, current_solution);
+            }
+
+            // Vérifier si solution est réalisable
+            if (is_valid_solution(problem, neighbor)) {
+                int neighbor_cost = compute_cost(problem, neighbor);
+
+                if (neighbor_cost < current_cost) {
+                    current_solution = neighbor;
+                    current_cost = neighbor_cost;
+                    improved = true;
+                    break; // Repart de k = 0
+                }
+            }
+        }
+
+        if (!improved) {
+            // Aucun voisin n’a permis d’améliorer : fin ou on continue quand même ?
+            break; // Option simple : on arrête quand on est bloqué
+        }
+    }
+
+    return current_solution;
+}
 
 
 int main() {
@@ -212,6 +261,8 @@ int main() {
     }
     cout << endl;
 
+    cout << "Coût total : " << compute_cost(problem, random_solution) << endl;
+
     if (is_valid_solution(problem, random_solution)) {
         cout << "✅ La solution est valide et couvre toutes les lignes." << endl;
     } else {
@@ -222,7 +273,6 @@ int main() {
     cout << "-----------------------------" << endl;
     cout << "🔧 Test des recherches locales" << endl;
 
-    // Générer une solution réalisable de départ
     vector<int> base_solution = generate_random_solution(problem);
 
     cout << "Solution de départ : ";
@@ -230,34 +280,46 @@ int main() {
         cout << base_solution[i] + 1 << " ";
     }
     cout << endl;
+    cout << "Coût total : " << compute_cost(problem, base_solution) << endl;
 
-    // Test : Ajouter un sous-ensemble
     vector<int> added_solution = add_subset(problem, base_solution);
     cout << "[+ Ajout] Solution après ajout : ";
     for (size_t i = 0; i < added_solution.size(); i++) {
         cout << added_solution[i] + 1 << " ";
     }
-    cout << "| Valide : " << (is_valid_solution(problem, added_solution) ? "oui" : "non") << endl;
+    cout << "| Valide : " << (is_valid_solution(problem, added_solution) ? "oui" : "non");
+    cout << " | Coût total : " << compute_cost(problem, added_solution) << endl;
 
-    // Test : Retirer un sous-ensemble
     vector<int> removed_solution = remove_subset(problem, base_solution);
     cout << "[- Suppression] Solution après retrait : ";
     for (size_t i = 0; i < removed_solution.size(); i++) {
         cout << removed_solution[i] + 1 << " ";
     }
-    cout << "| Valide : " << (is_valid_solution(problem, removed_solution) ? "oui" : "non") << endl;
+    cout << "| Valide : " << (is_valid_solution(problem, removed_solution) ? "oui" : "non");
+    cout << " | Coût total : " << compute_cost(problem, removed_solution) << endl;
 
-    // Test : Échanger un sous-ensemble
     vector<int> swapped_solution = swap_subset(problem, base_solution);
     cout << "[~ Échange] Solution après échange : ";
     for (size_t i = 0; i < swapped_solution.size(); i++) {
         cout << swapped_solution[i] + 1 << " ";
     }
-    cout << "| Valide : " << (is_valid_solution(problem, swapped_solution) ? "oui" : "non") << endl;
+    cout << "| Valide : " << (is_valid_solution(problem, swapped_solution) ? "oui" : "non");
+    cout << " | Coût total : " << compute_cost(problem, swapped_solution) << endl;
 
     cout << "-----------------------------" << endl;
 
+    // 🔄 Lancement de la VNS
+    cout << "🚀 Lancement de VNS..." << endl;
+    int max_iterations = 100;
+    vector<int> vns_solution = vns(problem, max_iterations);
 
+    cout << "✅ Solution trouvée par VNS : ";
+    for (size_t i = 0; i < vns_solution.size(); i++) {
+        cout << vns_solution[i] + 1 << " ";
+    }
+    cout << endl;
+    cout << "✔️ Est valide ? " << (is_valid_solution(problem, vns_solution) ? "Oui" : "Non") << endl;
+    cout << "💰 Coût total : " << compute_cost(problem, vns_solution) << endl;
 
     return 0;
 }

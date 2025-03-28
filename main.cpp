@@ -238,52 +238,75 @@ vector<int> vns(const SetCoverProblem& problem, int max_iterations) {
     return current_solution;
 }
 
-#include <chrono>
-#include <fstream>
 
-void benchmark_algorithms(const SetCoverProblem& problem, const string& output_csv) {
+void benchmark_algorithms(const vector<string>& filenames, const string& output_csv) {
     ofstream file(output_csv);
-    file << "Méthode,Coût,Temps(s)\n";
+    file << "Fichier,Méthode,Moyenne_Coût,Moyenne_Temps(s)\n";
 
-    // Mesure Random
-    auto start = chrono::high_resolution_clock::now();
-    vector<int> random_solution = generate_random_solution(problem);
-    auto end = chrono::high_resolution_clock::now();
-    double time_random = chrono::duration<double>(end - start).count();
-    int cost_random = compute_cost(problem, random_solution);
-    file << "Random," << cost_random << "," << time_random << "\n";
+    for (const string& filename : filenames) {
+        cout << "📂 Traitement de : " << filename << endl;
 
-    // LS Add
-    start = chrono::high_resolution_clock::now();
-    vector<int> add_solution = add_subset(problem, random_solution);
-    end = chrono::high_resolution_clock::now();
-    double time_add = chrono::duration<double>(end - start).count();
-    int cost_add = compute_cost(problem, add_solution);
-    file << "LocalSearch_Add," << cost_add << "," << time_add << "\n";
+        SetCoverProblem problem = read_scp_file(filename);
 
-    // LS Remove
-    start = chrono::high_resolution_clock::now();
-    vector<int> remove_solution = remove_subset(problem, random_solution);
-    end = chrono::high_resolution_clock::now();
-    double time_remove = chrono::duration<double>(end - start).count();
-    int cost_remove = compute_cost(problem, remove_solution);
-    file << "LocalSearch_Remove," << cost_remove << "," << time_remove << "\n";
+        vector<string> method_names;
+        method_names.push_back("Random");
+        method_names.push_back("LocalSearch_Add");
+        method_names.push_back("LocalSearch_Remove");
+        method_names.push_back("LocalSearch_Swap");
+        method_names.push_back("VNS");
 
-    // LS Swap
-    start = chrono::high_resolution_clock::now();
-    vector<int> swap_solution = swap_subset(problem, random_solution);
-    end = chrono::high_resolution_clock::now();
-    double time_swap = chrono::duration<double>(end - start).count();
-    int cost_swap = compute_cost(problem, swap_solution);
-    file << "LocalSearch_Swap," << cost_swap << "," << time_swap << "\n";
+        vector<vector<int> > costs(method_names.size());
+        vector<vector<double> > times(method_names.size());
 
-    // VNS
-    start = chrono::high_resolution_clock::now();
-    vector<int> vns_solution = vns(problem, 100); // Tu peux ajuster les itérations
-    end = chrono::high_resolution_clock::now();
-    double time_vns = chrono::duration<double>(end - start).count();
-    int cost_vns = compute_cost(problem, vns_solution);
-    file << "VNS," << cost_vns << "," << time_vns << "\n";
+        for (int run = 0; run < 10; run++) {
+            // Random
+            auto start = chrono::high_resolution_clock::now();
+            vector<int> random_solution = generate_random_solution(problem);
+            auto end = chrono::high_resolution_clock::now();
+            double duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
+            times[0].push_back(duration);
+            costs[0].push_back(compute_cost(problem, random_solution));
+
+            // Add
+            start = chrono::high_resolution_clock::now();
+            vector<int> add_solution = add_subset(problem, random_solution);
+            end = chrono::high_resolution_clock::now();
+            duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
+            times[1].push_back(duration);
+            costs[1].push_back(compute_cost(problem, add_solution));
+
+            // Remove
+            start = chrono::high_resolution_clock::now();
+            vector<int> remove_solution = remove_subset(problem, random_solution);
+            end = chrono::high_resolution_clock::now();
+            duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
+            times[2].push_back(duration);
+            costs[2].push_back(compute_cost(problem, remove_solution));
+
+            // Swap
+            start = chrono::high_resolution_clock::now();
+            vector<int> swap_solution = swap_subset(problem, random_solution);
+            end = chrono::high_resolution_clock::now();
+            duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
+            times[3].push_back(duration);
+            costs[3].push_back(compute_cost(problem, swap_solution));
+
+            // VNS
+            start = chrono::high_resolution_clock::now();
+            vector<int> vns_solution = vns(problem, 100);
+            end = chrono::high_resolution_clock::now();
+            duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
+            times[4].push_back(duration);
+            costs[4].push_back(compute_cost(problem, vns_solution));
+        }
+
+        // Écriture des moyennes dans le fichier CSV
+        for (size_t i = 0; i < method_names.size(); i++) {
+            double avg_cost = accumulate(costs[i].begin(), costs[i].end(), 0.0) / costs[i].size();
+            double avg_time = accumulate(times[i].begin(), times[i].end(), 0.0) / times[i].size();
+            file << filename << "," << method_names[i] << "," << avg_cost << "," << avg_time << "\n";
+        }
+    }
 
     file.close();
     cout << "✅ Résultats enregistrés dans : " << output_csv << endl;
@@ -369,7 +392,14 @@ int main() {
     cout << "✔️ Est valide ? " << (is_valid_solution(problem, vns_solution) ? "Oui" : "Non") << endl;
     cout << "💰 Coût total : " << compute_cost(problem, vns_solution) << endl;
 
-    benchmark_algorithms(problem, "resultats.csv");
+    vector<string> filenames;
+
+    // Ajout manuel des chemins de fichiers
+    filenames.push_back("resources/scp41.txt");
+    filenames.push_back("resources/maison_borne.txt");
+
+
+    benchmark_algorithms(filenames, "resultats.csv");
 
     return 0;
 }

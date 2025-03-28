@@ -79,7 +79,6 @@ void display_problem(const SetCoverProblem& problem) {
 // Génère une solution réalisable de manière naïve (aléatoire)
 vector<int> generate_random_solution(const SetCoverProblem& problem) {
     vector<int> selected_columns;
-    vector<bool> covered(problem.m, false);
     vector<bool> column_used(problem.n, false);
     unordered_set<int> uncovered_rows;
 
@@ -234,10 +233,6 @@ vector<int> vns(const SetCoverProblem& problem, int max_iterations) {
             }
         }
 
-        if (!improved) {
-            // Aucun voisin n’a permis d’améliorer : fin ou on continue quand même ?
-            break; // Option simple : on arrête quand on est bloqué
-        }
     }
 
     return current_solution;
@@ -245,7 +240,8 @@ vector<int> vns(const SetCoverProblem& problem, int max_iterations) {
 
 
 int main() {
-    string filename = "resources/scp41.txt"; // Remplacez par le fichier à lire
+    //string filename = "resources/scp41.txt"; // Remplacez par le fichier à lire
+    string filename = "resources/maison_borne.txt"; // Remplacez par le fichier à lire
 
     // Lire les données
     SetCoverProblem problem = read_scp_file(filename);

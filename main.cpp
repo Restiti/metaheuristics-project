@@ -115,6 +115,94 @@ vector<int> generate_random_solution(const SetCoverProblem& problem) {
     return selected_columns;
 }
 
+vector<int> generate_better_random_solution(const SetCoverProblem& problem) {
+    vector<int> selected_columns;
+    unordered_set<int> uncovered_rows;
+    for (int i = 0; i < problem.m; i++) {
+        uncovered_rows.insert(i);
+    }
+
+    vector<unordered_set<int>> column_coverage(problem.n);
+    for (int j = 0; j < problem.n; j++) {
+        for (int i = 0; i < problem.m; i++) {
+            if (problem.A[i][j] == 1) {
+                column_coverage[j].insert(i);
+            }
+        }
+    }
+
+    while (!uncovered_rows.empty()) {
+        int best_col = -1;
+        size_t max_covered = 0;
+
+        for (int j = 0; j < problem.n; j++) {
+            size_t covered = 0;
+            for (int row : column_coverage[j]) {
+                if (uncovered_rows.count(row)) {
+                    covered++;
+                }
+            }
+
+            if (covered > max_covered) {
+                max_covered = covered;
+                best_col = j;
+            }
+        }
+
+        if (best_col == -1) {
+            cerr << "❌ Erreur : aucune colonne ne couvre les lignes restantes." << endl;
+            break;
+        }
+
+        selected_columns.push_back(best_col);
+        for (int row : column_coverage[best_col]) {
+            uncovered_rows.erase(row);
+        }
+    }
+
+    return selected_columns;
+}
+
+vector<int> generate_cost_coverage_greedy(const SetCoverProblem& P) {
+    unordered_set<int> uncovered;
+    for(int i=0; i<P.m; i++) uncovered.insert(i);
+
+    vector<bool> used(P.n,false);
+    vector<unordered_set<int>> cov(P.n);
+    for(int j=0; j<P.n; j++)
+        for(int i=0; i<P.m; i++)
+            if(P.A[i][j]) cov[j].insert(i);
+
+    vector<int> solution;
+    while(!uncovered.empty()) {
+        int best = -1;
+        double bestRatio = numeric_limits<double>::infinity();
+
+        for(int j=0; j<P.n; j++) if(!used[j]) {
+            // nombre de nouvelles lignes couvertes
+            int newCov = 0;
+            for(int i: cov[j]) if(uncovered.count(i)) newCov++;
+            if(newCov==0) continue;
+            double ratio = double(P.costs[j]) / newCov;
+            if(ratio < bestRatio) {
+                bestRatio = ratio;
+                best = j;
+            }
+        }
+
+        if(best<0) {
+            cerr<<"Échec de couverture\n";
+            break;
+        }
+
+        // sélection et mise à jour
+        solution.push_back(best);
+        used[best] = true;
+        for(int i: cov[best]) uncovered.erase(i);
+    }
+    return solution;
+}
+
 
 // Vérifie si une solution est réalisable (couvre toutes les lignes)
 bool is_valid_solution(const SetCoverProblem& problem, const vector<int>& solution) {
@@ -200,6 +288,113 @@ int compute_cost(const SetCoverProblem& problem, const vector<int>& solution) {
     return total_cost;
 }
 
+vector<int> shake_remove_k(const SetCoverProblem& P, const vector<int>& S, int k) {
+    vector<int> Ssh = S;
+    int sz = (int)Ssh.size();
+    if (sz <= k) {
+        // Si k >= taille, on enlève tout sauf un pour garder solution valide
+        Ssh.resize(max(1, sz - 1));
+        return Ssh;
+    }
+    vector<int> idx(sz);
+    iota(idx.begin(), idx.end(), 0);
+    random_device rd;
+    mt19937 gen(rd());
+    shuffle(idx.begin(), idx.end(), gen);
+    unordered_set<int> to_remove(idx.begin(), idx.begin() + k);
+    vector<int> result;
+    result.reserve(sz - k);
+    for (int i = 0; i < sz; i++) {
+        if (!to_remove.count(i)) result.push_back(Ssh[i]);
+    }
+    return result;
+}
+
+vector<int> repair_with_greedy(const SetCoverProblem& P, const vector<int>& partial) {
+    int m = P.m, n = P.n;
+    vector<bool> used(n, false);
+    for (int j : partial) used[j] = true;
+    vector<bool> covered(m, false);
+    for (int j : partial)
+        for (int i = 0; i < m; i++) if (P.A[i][j]) covered[i] = true;
+    vector<unordered_set<int>> cov(n);
+    for (int j = 0; j < n; j++)
+        for (int i = 0; i < m; i++) if (P.A[i][j]) cov[j].insert(i);
+
+    vector<int> sol = partial;
+    unordered_set<int> uncovered;
+    for (int i = 0; i < m; i++) if (!covered[i]) uncovered.insert(i);
+
+    while (!uncovered.empty()) {
+        int best_j = -1;
+        double best_ratio = numeric_limits<double>::infinity();
+        for (int j = 0; j < n; j++) {
+            if (used[j]) continue;
+            int cnt = 0;
+            for (int r : cov[j]) if (uncovered.count(r)) cnt++;
+            if (cnt == 0) continue;
+            double ratio = double(P.costs[j]) / cnt;
+            if (ratio < best_ratio) {
+                best_ratio = ratio;
+                best_j = j;
+            }
+        }
+        if (best_j < 0) break;
+        sol.push_back(best_j);
+        used[best_j] = true;
+        for (int r : cov[best_j]) uncovered.erase(r);
+    }
+    return sol;
+}
+
+// 3) Recherche locale Best-Improvement sur Add, Remove, Swap
+vector<int> best_local_search(const SetCoverProblem& P, const vector<int>& init) {
+    vector<int> best_sol = init;
+    int best_cost = compute_cost(P, best_sol);
+    int m = P.m, n = P.n;
+    unordered_set<int> in_sol(init.begin(), init.end());
+
+    // Add
+    for (int j = 0; j < n; j++) {
+        if (in_sol.count(j)) continue;
+        vector<int> cand = init;
+        cand.push_back(j);
+        int c = compute_cost(P, cand);
+        if (c < best_cost) {
+            best_cost = c;
+            best_sol = move(cand);
+        }
+    }
+
+    // Remove
+    for (size_t i = 0; i < init.size(); i++) {
+        vector<int> cand = init;
+        cand.erase(cand.begin() + i);
+        if (!is_valid_solution(P, cand)) continue;
+        int c = compute_cost(P, cand);
+        if (c < best_cost) {
+            best_cost = c;
+            best_sol = move(cand);
+        }
+    }
+
+    // Swap
+    for (size_t i = 0; i < init.size(); i++) {
+        for (int j = 0; j < n; j++) {
+            if (in_sol.count(j)) continue;
+            vector<int> cand = init;
+            cand[i] = j;
+            if (!is_valid_solution(P, cand)) continue;
+            int c = compute_cost(P, cand);
+            if (c < best_cost) {
+                best_cost = c;
+                best_sol = move(cand);
+            }
+        }
+    }
+    return best_sol;
+}
+
 
 vector<int> vns(const SetCoverProblem& problem, int max_iterations) {
     vector<int> current_solution = generate_random_solution(problem);
@@ -238,70 +433,129 @@ vector<int> vns(const SetCoverProblem& problem, int max_iterations) {
     return current_solution;
 }
 
+vector<int> vns_optimized(const SetCoverProblem& P,
+                          int maxIter = 500,
+                          int maxK    = 5)
+{
+    // 1) Initialisation par glouton coût/coverage
+    vector<int> S = generate_cost_coverage_greedy(P);
+    int bestCost = compute_cost(P, S);
+
+    int k = 1, iter = 0, stagn = 0;
+    constexpr int STAG_THRESHOLD = 50;
+
+    while (iter < maxIter && stagn < STAG_THRESHOLD) {
+        // 2) Shake : suppression aléatoire de k sous-ensembles
+        vector<int> Ssh = shake_remove_k(P, S, k);
+
+        // 3) Réparation gloutonne
+        Ssh = repair_with_greedy(P, Ssh);
+
+        // 4) Local Search (best improvement)
+        vector<int> Snew = best_local_search(P, Ssh);
+        int newCost = compute_cost(P, Snew);
+
+        if (newCost < bestCost) {
+            S = move(Snew);
+            bestCost = newCost;
+            k = 1;
+            stagn = 0;
+        } else {
+            k = min(k+1, maxK);
+            stagn++;
+        }
+
+        iter++;
+    }
+
+    return S;
+}
+
 
 void benchmark_algorithms(const vector<string>& filenames, const string& output_csv) {
     ofstream file(output_csv);
     file << "Fichier,Méthode,Moyenne_Coût,Moyenne_Temps(s)\n";
 
+    const int NUM_RUNS = 5;  // Réduit pour accélérer
     for (const string& filename : filenames) {
         cout << "📂 Traitement de : " << filename << endl;
+        SetCoverProblem P = read_scp_file(filename);
 
-        SetCoverProblem problem = read_scp_file(filename);
+        vector<string> method_names = {
+            "Random",
+            "BetterRandom",
+            "Greedy_CostCoverage",
+            "VNS_Optimized",
+            "LocalSearch_Add",
+            "LocalSearch_Remove",
+            "LocalSearch_Swap",
+            "VNS_Basic"
+        };
+        size_t m = method_names.size();
+        vector<vector<int>> costs(m);
+        vector<vector<double>> times(m);
 
-        vector<string> method_names;
-        method_names.push_back("Random");
-        method_names.push_back("LocalSearch_Add");
-        method_names.push_back("LocalSearch_Remove");
-        method_names.push_back("LocalSearch_Swap");
-        method_names.push_back("VNS");
+        for (int run = 0; run < NUM_RUNS; run++) {
+            cout << "  ➤ Run " << (run+1) << "/" << NUM_RUNS << endl;
 
-        vector<vector<int> > costs(method_names.size());
-        vector<vector<double> > times(method_names.size());
-
-        for (int run = 0; run < 10; run++) {
             // Random
-            auto start = chrono::high_resolution_clock::now();
-            vector<int> random_solution = generate_random_solution(problem);
-            auto end = chrono::high_resolution_clock::now();
-            double duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
-            times[0].push_back(duration);
-            costs[0].push_back(compute_cost(problem, random_solution));
+            auto t0 = chrono::high_resolution_clock::now();
+            auto sol0 = generate_random_solution(P);
+            auto t1 = chrono::high_resolution_clock::now();
+            times[0].push_back(chrono::duration<double>(t1 - t0).count());
+            costs[0].push_back(compute_cost(P, sol0));
 
-            // Add
-            start = chrono::high_resolution_clock::now();
-            vector<int> add_solution = add_subset(problem, random_solution);
-            end = chrono::high_resolution_clock::now();
-            duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
-            times[1].push_back(duration);
-            costs[1].push_back(compute_cost(problem, add_solution));
+            // BetterRandom
+            t0 = chrono::high_resolution_clock::now();
+            auto sol1 = generate_better_random_solution(P);
+            t1 = chrono::high_resolution_clock::now();
+            times[1].push_back(chrono::duration<double>(t1 - t0).count());
+            costs[1].push_back(compute_cost(P, sol1));
 
-            // Remove
-            start = chrono::high_resolution_clock::now();
-            vector<int> remove_solution = remove_subset(problem, random_solution);
-            end = chrono::high_resolution_clock::now();
-            duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
-            times[2].push_back(duration);
-            costs[2].push_back(compute_cost(problem, remove_solution));
+            // Greedy_CostCoverage
+            t0 = chrono::high_resolution_clock::now();
+            auto sol2 = generate_cost_coverage_greedy(P);
+            t1 = chrono::high_resolution_clock::now();
+            times[2].push_back(chrono::duration<double>(t1 - t0).count());
+            costs[2].push_back(compute_cost(P, sol2));
 
-            // Swap
-            start = chrono::high_resolution_clock::now();
-            vector<int> swap_solution = swap_subset(problem, random_solution);
-            end = chrono::high_resolution_clock::now();
-            duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
-            times[3].push_back(duration);
-            costs[3].push_back(compute_cost(problem, swap_solution));
+            // VNS_Optimized (itérations réduites)
+            t0 = chrono::high_resolution_clock::now();
+            auto sol3 = vns_optimized(P, 100, 3);
+            t1 = chrono::high_resolution_clock::now();
+            times[3].push_back(chrono::duration<double>(t1 - t0).count());
+            costs[3].push_back(compute_cost(P, sol3));
 
-            // VNS
-            start = chrono::high_resolution_clock::now();
-            vector<int> vns_solution = vns(problem, 100);
-            end = chrono::high_resolution_clock::now();
-            duration = chrono::duration_cast<chrono::duration<double> >(end - start).count();
-            times[4].push_back(duration);
-            costs[4].push_back(compute_cost(problem, vns_solution));
+            // LocalSearch_Add
+            t0 = chrono::high_resolution_clock::now();
+            auto sol4 = add_subset(P, sol0);
+            t1 = chrono::high_resolution_clock::now();
+            times[4].push_back(chrono::duration<double>(t1 - t0).count());
+            costs[4].push_back(compute_cost(P, sol4));
+
+            // LocalSearch_Remove
+            t0 = chrono::high_resolution_clock::now();
+            auto sol5 = remove_subset(P, sol0);
+            t1 = chrono::high_resolution_clock::now();
+            times[5].push_back(chrono::duration<double>(t1 - t0).count());
+            costs[5].push_back(compute_cost(P, sol5));
+
+            // LocalSearch_Swap
+            t0 = chrono::high_resolution_clock::now();
+            auto sol6 = swap_subset(P, sol0);
+            t1 = chrono::high_resolution_clock::now();
+            times[6].push_back(chrono::duration<double>(t1 - t0).count());
+            costs[6].push_back(compute_cost(P, sol6));
+
+            // VNS_Basic
+            t0 = chrono::high_resolution_clock::now();
+            auto sol7 = vns(P, 50);  // itérations réduites
+            t1 = chrono::high_resolution_clock::now();
+            times[7].push_back(chrono::duration<double>(t1 - t0).count());
+            costs[7].push_back(compute_cost(P, sol7));
         }
 
-        // Écriture des moyennes dans le fichier CSV
-        for (size_t i = 0; i < method_names.size(); i++) {
+        for (size_t i = 0; i < m; i++) {
             double avg_cost = accumulate(costs[i].begin(), costs[i].end(), 0.0) / costs[i].size();
             double avg_time = accumulate(times[i].begin(), times[i].end(), 0.0) / times[i].size();
             file << filename << "," << method_names[i] << "," << avg_cost << "," << avg_time << "\n";
@@ -311,6 +565,8 @@ void benchmark_algorithms(const vector<string>& filenames, const string& output_
     file.close();
     cout << "✅ Résultats enregistrés dans : " << output_csv << endl;
 }
+
+
 
 
 

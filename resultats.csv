@@ -1,0 +1,17 @@
+Fichier,Méthode,Moyenne_Coût,Moyenne_Temps(s)
+resources/scp41.txt,Random,13503.8,0.00023745
+resources/scp41.txt,BetterRandom,1816,0.00883185
+resources/scp41.txt,Greedy_CostCoverage,463,0.0165001
+resources/scp41.txt,VNS_Optimized,433,182.291
+resources/scp41.txt,LocalSearch_Add,13504.8,1.93166e-05
+resources/scp41.txt,LocalSearch_Remove,13440.6,0.000155117
+resources/scp41.txt,LocalSearch_Swap,13441.6,0.000157275
+resources/scp41.txt,VNS_Basic,12720.4,0.0246662
+resources/maison_borne.txt,Random,12,7.55e-06
+resources/maison_borne.txt,BetterRandom,8,8.5332e-06
+resources/maison_borne.txt,Greedy_CostCoverage,8,7.95e-06
+resources/maison_borne.txt,VNS_Optimized,8,0.000605367
+resources/maison_borne.txt,LocalSearch_Add,14,5.414e-07
+resources/maison_borne.txt,LocalSearch_Remove,8.4,1.1168e-06
+resources/maison_borne.txt,LocalSearch_Swap,11.2,8.998e-07
+resources/maison_borne.txt,VNS_Basic,8,0.000272958
